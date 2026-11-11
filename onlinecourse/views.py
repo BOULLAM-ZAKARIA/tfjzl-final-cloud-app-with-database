@@ -230,6 +230,7 @@ def show_exam_result(request, course_id, submission_id):
         "earned_score": earned_score,
         "total_score": total_score,
         "passed": grade >= 80,
+        "selected_ids": selected_ids,
         "question_results": question_results
     }
 
