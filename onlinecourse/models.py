@@ -101,3 +101,36 @@ class Enrollment(models.Model):
 #class Submission(models.Model):
 #    enrollment = models.ForeignKey(Enrollment, on_delete=models.CASCADE)
 #    choices = models.ManyToManyField(Choice)
+
+class Question(models.Model):
+    course = models.ForeignKey(Course, on_delete=models.CASCADE)
+    content = models.CharField(max_length=1000)
+    grade = models.IntegerField(default=100)
+
+    def __str__(self):
+        return self.content
+
+    def is_get_score(self, selected_ids):
+        correct = set(self.choice_set.filter(
+            is_correct=True
+        ).values_list("id", flat=True))
+
+        selected = set(self.choice_set.filter(
+            id__in=selected_ids
+        ).values_list("id", flat=True))
+
+        return bool(correct) and correct == selected
+
+
+class Choice(models.Model):
+    question = models.ForeignKey(Question, on_delete=models.CASCADE)
+    content = models.CharField(max_length=1000)
+    is_correct = models.BooleanField(default=False)
+
+    def __str__(self):
+        return self.content
+
+
+class Submission(models.Model):
+    enrollment = models.ForeignKey(Enrollment, on_delete=models.CASCADE)
+    choices = models.ManyToManyField(Choice)

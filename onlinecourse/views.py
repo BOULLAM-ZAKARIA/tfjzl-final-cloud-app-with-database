@@ -134,3 +134,107 @@ def extract_answers(request):
 
 
 
+
+
+from .models import Question, Choice, Submission
+from django.contrib.auth.decorators import login_required
+from django.views.decorators.http import require_POST
+
+
+@login_required
+@require_POST
+def submit(request, course_id):
+    """Save the learner's exam answers."""
+
+    course = get_object_or_404(Course, pk=course_id)
+
+    enrollment = get_object_or_404(
+        Enrollment,
+        user=request.user,
+        course=course
+    )
+
+    submission = Submission.objects.create(
+        enrollment=enrollment
+    )
+
+    selected_ids = []
+
+    for key, value in request.POST.items():
+        if key.startswith("choice_") and value.isdigit():
+            selected_ids.append(int(value))
+
+    choices = Choice.objects.filter(
+        id__in=selected_ids,
+        question__course=course
+    )
+
+    submission.choices.set(choices)
+
+    return redirect(
+        "onlinecourse:show_exam_result",
+        course_id=course.id,
+        submission_id=submission.id
+    )
+
+
+@login_required
+def show_exam_result(request, course_id, submission_id):
+    """Calculate the score and show exam results."""
+
+    course = get_object_or_404(Course, pk=course_id)
+
+    submission = get_object_or_404(
+        Submission,
+        pk=submission_id,
+        enrollment__course=course,
+        enrollment__user=request.user
+    )
+
+    selected_ids = list(
+        submission.choices.values_list("id", flat=True)
+    )
+
+    questions = Question.objects.filter(course=course)
+
+    total_score = sum(q.grade for q in questions)
+    earned_score = 0
+    question_results = []
+
+    for question in questions:
+        correct = question.is_get_score(selected_ids)
+
+        if correct:
+            earned_score += question.grade
+
+        question_results.append({
+            "question": question,
+            "correct": correct,
+            "choices": [
+                {
+                    "content": choice.content,
+                    "selected": choice.id in selected_ids,
+                    "is_correct": choice.is_correct
+                }
+                for choice in question.choice_set.all()
+            ]
+        })
+
+    grade = round(
+        earned_score * 100 / total_score
+    ) if total_score else 0
+
+    context = {
+        "course": course,
+        "grade": grade,
+        "earned_score": earned_score,
+        "total_score": total_score,
+        "passed": grade >= 80,
+        "question_results": question_results
+    }
+
+    return render(
+        request,
+        "onlinecourse/exam_result_bootstrap.html",
+        context
+    )
